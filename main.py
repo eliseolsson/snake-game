@@ -16,6 +16,7 @@ YELLOW = (255, 215, 0)
 GREEN = (170, 255, 0)
 ORANGE = (255, 140, 0)
 BLACK = (0,0,0)
+GREY = (200,200,200)
 
 DIFFICULTIES = ["easy", "medium", "hard"]
 difficulty_colors = {
@@ -211,6 +212,25 @@ def update_snake():
             new_pos, new_type = generate_food()
             foods[i] = (new_pos, new_type, current_time)
 
+# TOP 10 HIGHEST SCORES SAVED AND DISPLAYED AFTER PLAYING
+import os
+
+HIGHSCORE_FILE = "highscore.txt"
+
+def load_highscore():
+    if not os.path.exists(HIGHSCORE_FILE):
+        return 0
+    with open(HIGHSCORE_FILE, "r") as f:
+        try:
+            return int(f.read().strip())
+        except ValueError:
+            return 0
+
+def save_highscore(score):
+    highscore = load_highscore()
+    if score > highscore:
+        with open(HIGHSCORE_FILE, "w") as f:
+            f.write(str(score))
 
 def game_over():
     # game over when snake hits the boundaries or runs into itself
@@ -226,9 +246,28 @@ def game_over():
 def game_over_screen():
     global score
     win.fill((0, 0, 0))
+
+    # High score on screen
+    highscore = load_highscore()
+    high_score_font = pygame.font.SysFont("consolas", 20)
+    high_score_text = high_score_font.render(f"High Score: {highscore}", True, WHITE)
+    win.blit(high_score_text, (WIDTH // 2 - high_score_text.get_width() // 2, HEIGHT // 2 - high_score_text.get_height() // 2 - 20))
+
+    # Game over
     game_over_font = pygame.font.SysFont("consolas", 30)
     game_over_text = game_over_font.render(f"Game Over! Score: {score}", True, WHITE)
-    win.blit(game_over_text, (WIDTH // 2 - game_over_text.get_width() // 2, HEIGHT // 2 - game_over_text.get_height() // 2))
+    win.blit(game_over_text, (WIDTH // 2 - game_over_text.get_width() // 2, HEIGHT // 2 - game_over_text.get_height() // 2 - 60))
+ 
+    # Play again button
+    play_btn_x = WIDTH // 2 - 200
+    play_again_font = pygame.font.SysFont("consolas", 30)
+    button_rect = draw_button("Play again", play_btn_x, 400, play_again_font, win, rect_color=GREEN, padding=25)
+
+    # Home Button
+    home_font = pygame.font.SysFont("consolas", 30)
+    home_x = WIDTH// 2 + 50
+    home_rect = draw_button("Home", home_x, 400, home_font, win, rect_color=GREY, padding=25)
+
     pygame.display.update()
 
     while True:
@@ -236,9 +275,17 @@ def game_over_screen():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 return
+                       # Click detection
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if button_rect.collidepoint(event.pos):
+                    run(difficulty)  # restart game
+                    return
+                elif home_rect.collidepoint(event.pos):
+                    start_menu() #go back to start menu
+                    return
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_r:
-                    run()  # replay the game
+                    run(difficulty)  # replay the game
                     return
                 elif event.key == pygame.K_q:
                     pygame.quit()  # quit the game
@@ -284,6 +331,7 @@ def run(difficulty):
         # Move snake only every MOVE_INTERVAL milliseconds
         if current_time - last_move_time > MOVE_INTERVAL:
             if game_over():
+                save_highscore(score)
                 game_over_screen()
                 return
             update_snake()
