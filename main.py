@@ -18,6 +18,8 @@ ORANGE = (255, 140, 0)
 BLACK = (0,0,0)
 GREY = (200,200,200)
 
+START_TIME = 0
+
 DIFFICULTIES = ["easy", "medium", "hard"]
 difficulty_colors = {
     "easy": (0, 200, 0),
@@ -149,11 +151,12 @@ def generate_food():
                 food_type = "NORMAL"
             return (pos, food_type)
 
-def draw_objects():
+def draw_objects(time):
     win.fill(WHITE) #clear screen by filling with black
     for pos in snake_pos:
         pygame.draw.rect(win, GREEN, pygame.Rect(pos[0], pos[1], BLOCK_SIZE, BLOCK_SIZE))
-    current_time = pygame.time.get_ticks()
+    #current_time = pygame.time.get_ticks()
+    current_time = time
 
     for pos, ftype, spawn_time in foods:
         if current_time >= spawn_time:
@@ -163,9 +166,10 @@ def draw_objects():
     score_text = score_font.render(f"Score: {score}", True, (0,0,0))
     win.blit(score_text, (10, 10))  # draws the score on the top-left corner
 
-def update_snake():
+def update_snake(time):
     global foods, score, MAX_FOOD
-    current_time = pygame.time.get_ticks()
+    #current_time = pygame.time.get_ticks()
+    current_time = time
     new_head = [snake_pos[0][0] + snake_speed[0], snake_pos[0][1] + snake_speed[1]]
     
     if teleport_walls:
@@ -292,19 +296,22 @@ def game_over_screen():
                     return
 
 def run(difficulty):
-    global snake_speed, snake_pos, foods, score, MAX_FOOD
+    global snake_speed, snake_pos, foods, score, MAX_FOOD, PAUSE_TIME
     MAX_FOOD = difficulty_max_foods[difficulty]
     snake_pos = [[WIDTH//2, HEIGHT//2]]
     snake_speed = [0, BLOCK_SIZE]
     score = 0
     running = True
+    paused = False
+    pause_start_time = 0
+    PAUSE_TIME = 0
 
     global MOVE_INTERVAL 
     MOVE_INTERVAL = difficulty_speeds[difficulty]  # milliseconds between moves (e.g., 100ms = 10 moves per second), the snakes speed
     last_move_time = pygame.time.get_ticks()
 
     foods = []
-    start_time = pygame.time.get_ticks()
+    start_time = pygame.time.get_ticks() 
     for i in range(MAX_FOOD):
         pos, ftype = generate_food()
         spawn_time = start_time + i * 3000  # each food spawns 3 seconds apart
@@ -315,32 +322,55 @@ def run(difficulty):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-        keys = pygame.key.get_pressed()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_p:
+                    if not paused:
+                        paused = True
+                        pause_start_time = pygame.time.get_ticks()  # mark pause start
+                    else:
+                        paused = False
+                        PAUSE_TIME += pygame.time.get_ticks() - pause_start_time  # add paused time
 
-        # make sure snake can only turn 90 degrees, not 180 at once
-        # Check input every frame for responsiveness
-        if keys[pygame.K_UP] and snake_speed[1] != BLOCK_SIZE:
-            snake_speed = [0, -BLOCK_SIZE]
-        elif keys[pygame.K_DOWN] and snake_speed[1] != -BLOCK_SIZE:
-            snake_speed = [0, BLOCK_SIZE]
-        elif keys[pygame.K_LEFT] and snake_speed[0] != BLOCK_SIZE:
-            snake_speed = [-BLOCK_SIZE, 0]
-        elif keys[pygame.K_RIGHT] and snake_speed[0] != -BLOCK_SIZE:
-            snake_speed = [BLOCK_SIZE, 0]
+        if paused:
+            # Draw current game state behind pause sign
+            current_time = pygame.time.get_ticks() 
+            draw_objects(pause_start_time - PAUSE_TIME) 
+            # Draw PAUSE sign overlay
+            pause_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)  # transparent overlay
+            pause_overlay.fill((0, 0, 0, 150))  # semi-transparent black
+            win.blit(pause_overlay, (0, 0))
+            pause_text = title_font.render("PAUSED", True, WHITE)
+            win.blit(pause_text, (WIDTH // 2 - pause_text.get_width() // 2,
+                                HEIGHT // 2 - pause_text.get_height() // 2))
+            pygame.display.update()
+        else:
+            current_time = current_time - PAUSE_TIME
+            keys = pygame.key.get_pressed()
 
-        # Move snake only every MOVE_INTERVAL milliseconds
-        if current_time - last_move_time > MOVE_INTERVAL:
-            if game_over():
-                save_highscore(score)
-                game_over_screen()
-                return
-            update_snake()
-            last_move_time = current_time
+            # make sure snake can only turn 90 degrees, not 180 at once
+            # Check input every frame for responsiveness
+            if keys[pygame.K_UP] and snake_speed[1] != BLOCK_SIZE:
+                snake_speed = [0, -BLOCK_SIZE]
+            elif keys[pygame.K_DOWN] and snake_speed[1] != -BLOCK_SIZE:
+                snake_speed = [0, BLOCK_SIZE]
+            elif keys[pygame.K_LEFT] and snake_speed[0] != BLOCK_SIZE:
+                snake_speed = [-BLOCK_SIZE, 0]
+            elif keys[pygame.K_RIGHT] and snake_speed[0] != -BLOCK_SIZE:
+                snake_speed = [BLOCK_SIZE, 0]
 
-        draw_objects()
-        pygame.display.update()
+            # Move snake only every MOVE_INTERVAL milliseconds
+            if current_time - last_move_time > MOVE_INTERVAL:
+                if game_over():
+                    save_highscore(score)
+                    game_over_screen()
+                    return
+                update_snake(current_time)
+                last_move_time = current_time 
 
-        clock.tick(30)  # limit the frame rate to 30 FPS
+            draw_objects(current_time)
+            pygame.display.update()
+
+            clock.tick(30)  # limit the frame rate to 30 FPS
 
 if __name__ == '__main__':
     difficulty = start_menu()
